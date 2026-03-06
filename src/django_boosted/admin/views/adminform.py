@@ -22,6 +22,7 @@ class AdminFormViewMixin(ViewGenerator):
         path_fragment: str | None = None,
         requires_object: bool = True,
         permission: str = "view",
+        hidden: bool = False,
     ) -> Callable:
         from django.contrib.admin.helpers import AdminErrorList, AdminForm
         from django.forms import Form
@@ -180,6 +181,6 @@ class AdminFormViewMixin(ViewGenerator):
             "permission": permission,
             "view_type": "adminform",
             "requires_object": requires_object,
-            "show_in_object_tools": True,
+            "show_in_object_tools": not hidden,
         }
         return wrapper

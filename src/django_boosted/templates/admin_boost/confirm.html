@@ -1,11 +1,12 @@
-{% extends "admin/base_site.html" %}
+{% extends "admin/delete_confirmation.html" %}
 {% load i18n admin_urls static %}
 
-{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
-
-{% block extrastyle %}
-<link rel="stylesheet" href="{% static 'admin_boost.css' %}">
+{% block extrahead %}
+    {{ block.super }}
+    {{ media }}
 {% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ opts.app_label }} model-{{ opts.model_name }} confirm{% endblock %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
@@ -20,19 +21,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="confirm-container">
-    <div class="messagelist">
-        <div class="warning">
-            {{ confirm_message }}
-        </div>
+<p>{{ confirm_message }}</p>
+
+<form method="post">{% csrf_token %}
+    <div>
+        <input type="hidden" name="action" value="confirm">
+        <input type="submit" value="{{ confirm_choice }}">
+        <a role="button" href="{{ original_url|default:changelist_url }}" class="button cancel-link">{{ cancel_choice }}</a>
     </div>
-    
-    <form method="post">
-        {% csrf_token %}
-        <div class="submit-row">
-            <input type="submit" name="action" value="cancel" class="button cancel-link" formnovalidate>
-            <input type="submit" name="action" value="confirm" class="button default">
-        </div>
-    </form>
-</div>
+</form>
 {% endblock %}

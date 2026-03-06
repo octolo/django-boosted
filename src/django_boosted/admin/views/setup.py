@@ -23,6 +23,7 @@ def setup_boost_views(self, view_generator: ViewGenerator):
         path_fragment = config.get("path_fragment")
         requires_object = config.get("requires_object")
         permission = config.get("permission", "view")
+        hidden = config.get("hidden", False)
 
         if requires_object is None:
             sig = inspect.signature(attr)
@@ -35,6 +36,7 @@ def setup_boost_views(self, view_generator: ViewGenerator):
             "path_fragment": path_fragment,
             "requires_object": requires_object,
             "permission": permission,
+            "hidden": hidden,
         }
 
         if template_name is not None:

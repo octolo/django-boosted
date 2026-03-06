@@ -21,6 +21,7 @@ class JsonViewMixin(ViewGenerator):
         path_fragment: str | None = None,
         requires_object: bool = False,
         permission: str = "view",
+        hidden: bool = False,
     ) -> Callable:
 
         if requires_object:
@@ -55,6 +56,6 @@ class JsonViewMixin(ViewGenerator):
             "permission": permission,
             "view_type": "json",
             "requires_object": requires_object,
-            "show_in_object_tools": True,
+            "show_in_object_tools": not hidden,
         }
         return wrapper

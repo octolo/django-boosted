@@ -27,6 +27,7 @@ class RedirectViewMixin(ViewGenerator):
         path_fragment: str | None = None,
         requires_object: bool = False,
         permission: str = "view",
+        hidden: bool = False,
     ) -> Callable:
         config = ViewConfig(
             template_name=template_name,
@@ -40,7 +41,7 @@ class RedirectViewMixin(ViewGenerator):
             {
                 "view_type": "redirect",
                 "requires_object": requires_object,
-                "show_in_object_tools": True,
+                "show_in_object_tools": not hidden,
             }
         )
         return wrapper
@@ -77,5 +78,5 @@ class RedirectViewMixin(ViewGenerator):
                     return redirect(payload)
                 return redirect("admin:index")
 
-        redirect_wrapper._admin_boost_config = base_wrapper._admin_boost_config
+        redirect_wrapper._admin_boost_config = base_wrapper._admin_boost_config  # type: ignore[attr-defined]
         return redirect_wrapper

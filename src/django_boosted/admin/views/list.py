@@ -76,6 +76,7 @@ class ListViewMixin(ViewGenerator):
         path_fragment: str | None = None,
         requires_object: bool = False,
         permission: str = "view",
+        hidden: bool = False,
     ) -> Callable:
 
         def render_list_view(request, obj, payload):
@@ -149,7 +150,7 @@ class ListViewMixin(ViewGenerator):
             "permission": permission,
             "view_type": "list",
             "requires_object": requires_object,
-            "show_in_object_tools": True,
+            "show_in_object_tools": not hidden,
         }
 
         return wrapper

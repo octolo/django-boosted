@@ -19,6 +19,7 @@ class MessageViewMixin(ViewGenerator):
         path_fragment: str | None = None,
         requires_object: bool = False,
         permission: str = "view",
+        hidden: bool = False,
     ) -> Callable:
         config = ViewConfig(
             template_name=template_name,
@@ -32,7 +33,7 @@ class MessageViewMixin(ViewGenerator):
             {
                 "view_type": "message",
                 "requires_object": requires_object,
-                "show_in_object_tools": True,
+                "show_in_object_tools": not hidden,
             }
         )
         return wrapper

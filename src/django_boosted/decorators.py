@@ -14,6 +14,7 @@ class AdminBoostViewConfig:
     path_fragment: str | None = None
     requires_object: bool | None = None
     permission: str = "view"
+    hidden: bool = False
 
 
 def admin_boost_view(
@@ -29,6 +30,7 @@ def admin_boost_view(
             path_fragment=kwargs.get("path_fragment"),
             requires_object=kwargs.get("requires_object"),
             permission=kwargs.get("permission", "view"),
+            hidden=kwargs.get("hidden", False),
         )
 
     def decorator(func: Callable) -> Callable:
@@ -40,7 +42,20 @@ def admin_boost_view(
             "path_fragment": config.path_fragment,
             "requires_object": config.requires_object,
             "permission": config.permission,
+            "hidden": config.hidden,
         }
         return func
 
+    return decorator
+
+
+def admin_boost_action(action_name: str, label: str):
+    """Register a changeform action. Populates changeform_actions automatically.
+    Requires a handle_<action_name> method to process the action."""
+    def decorator(func: Callable) -> Callable:
+        func._changeform_action_config = {  # type: ignore[attr-defined]
+            "name": action_name,
+            "label": label,
+        }
+        return func
     return decorator

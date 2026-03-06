@@ -97,6 +97,11 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
         """Allow change form if custom actions are defined."""
         if getattr(self, "changeform_actions", None):
             return True
+        if any(
+            getattr(getattr(self, name), "_changeform_action_config", None)
+            for name in dir(self)
+        ):
+            return True
         return super().has_change_permission(request, obj)
 
     def changelist_view(self, request, extra_context=None):
@@ -176,8 +181,13 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
         return True
 
     def get_submit_actions(self, request, obj=None):
-        """Return dict of custom submit actions. Uses changeform_actions if defined."""
-        changeform_actions = getattr(self, "changeform_actions", {})
+        """Return dict of custom submit actions. Uses changeform_actions and @admin_boost_action."""
+        changeform_actions = dict(getattr(self, "changeform_actions", None) or {})
+        for attr_name in dir(self):
+            attr = getattr(self, attr_name)
+            config = getattr(attr, "_changeform_action_config", None)
+            if config:
+                changeform_actions[config["name"]] = config["label"]
         actions_enable = {}
         for action_name, action_label in changeform_actions.items():
             perm = self.get_action_permission(request, action_name, obj)

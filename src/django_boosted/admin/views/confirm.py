@@ -25,6 +25,7 @@ class ConfirmViewMixin(ViewGenerator):
         path_fragment: str | None = None,
         requires_object: bool = False,
         permission: str = "view",
+        hidden: bool = False,
     ) -> Callable:
 
         def _safe_redirect_url(request, fallback: str) -> str:
@@ -95,6 +96,6 @@ class ConfirmViewMixin(ViewGenerator):
             "permission": permission,
             "view_type": "confirm",
             "requires_object": requires_object,
-            "show_in_object_tools": True,
+            "show_in_object_tools": not hidden,
         }
         return wrapper

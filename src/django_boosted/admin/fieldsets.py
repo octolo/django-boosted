@@ -1,7 +1,7 @@
 from typing import Iterable
 
 
-def add_to_fieldset(self, name: str, fields: Iterable[str]):
+def add_to_fieldset(self, name: str, fields: Iterable[str], **kwargs):
     """Add fields to a fieldset by name. Create the fieldset if it doesn't exist."""
     if self.fieldsets is None:
         self.fieldsets = []
@@ -14,7 +14,7 @@ def add_to_fieldset(self, name: str, fields: Iterable[str]):
             break
 
     if fieldset_dict is None:
-        fieldset_dict = {"fields": []}
+        fieldset_dict = {"fields": [],}
         self.fieldsets.append((name, fieldset_dict))
     else:
         if "fields" not in fieldset_dict:
@@ -26,6 +26,8 @@ def add_to_fieldset(self, name: str, fields: Iterable[str]):
         if field not in fieldset_dict["fields"]:
             fieldset_dict["fields"].append(field)
 
+    if kwargs.get("classes"):
+        fieldset_dict["classes"] = kwargs.get("classes")
 
 def remove_from_fieldset(self, name: str, fields: Iterable[str]):
     """Remove fields from a fieldset by name."""
