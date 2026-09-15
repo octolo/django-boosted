@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from django_boosted import AdminBoostFormat, admin_boost_global_view
+from tests.app.forms import CountryForm
 from tests.app.models import Alphabet, Country
 
 User = get_user_model()
@@ -101,6 +102,39 @@ def global_colors_view(request, form=None):
             for color in BUTTON_COLORS
         ],
     }
+
+
+class ReadonlyDemoForm(forms.Form):
+    name = forms.CharField()
+    token = forms.CharField(required=False)
+    url = forms.CharField(required=False)
+
+
+@admin_boost_global_view("adminform", "Global readonly")
+def global_readonly_view(request, form=None):
+    readonly = ["token", "url"]
+    if form is not None:
+        return {
+            "form": ReadonlyDemoForm(
+                initial={
+                    "name": form.cleaned_data["name"],
+                    "token": "secret-token",
+                    "url": "https://example.com/hook",
+                }
+            ),
+            "readonly_fields": readonly,
+        }
+    return {"form": ReadonlyDemoForm(), "readonly_fields": readonly}
+
+
+@admin_boost_global_view("adminform", "Global readonly model")
+def global_readonly_model_view(request, form=None):
+    if form is not None:
+        return {
+            "form": CountryForm(instance=Country(name=form.cleaned_data["name"])),
+            "readonly_fields": ["name"],
+        }
+    return {"form": CountryForm(), "readonly_fields": ["name"]}
 
 
 @admin_boost_global_view("list", "Global countries")

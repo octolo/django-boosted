@@ -166,6 +166,48 @@ def test_global_adminform_all_button_colors(superuser):
 
 
 @pytest.mark.django_db()
+def test_global_adminform_honors_readonly_fields(superuser):
+    url = reverse("admin:django_boosted_boostedview_global_readonly_view")
+
+    response = _client(superuser).get(url)
+
+    assert response.status_code == 200
+    assert response.context["adminform"].readonly_fields == ("token", "url")
+    html = response.content.decode()
+    assert 'name="token"' not in html
+    assert 'name="url"' not in html
+    assert 'name="name"' in html
+
+
+@pytest.mark.django_db()
+def test_global_adminform_readonly_fields_show_values_after_post(superuser):
+    url = reverse("admin:django_boosted_boostedview_global_readonly_view")
+
+    response = _client(superuser).post(url, {"name": "brevo"})
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "secret-token" in html
+    assert "https://example.com/hook" in html
+    assert html.count('class="readonly"') >= 2
+    assert 'name="token"' not in html
+
+
+@pytest.mark.django_db()
+def test_global_adminform_readonly_fields_work_on_a_modelform(superuser):
+    url = reverse("admin:django_boosted_boostedview_global_readonly_model_view")
+
+    response = _client(superuser).post(url, {"name": "France"})
+
+    assert response.status_code == 200
+    assert response.context["adminform"].readonly_fields == ("name",)
+    html = response.content.decode()
+    assert "France" in html
+    assert 'name="name"' not in html
+    assert 'class="readonly"' in html
+
+
+@pytest.mark.django_db()
 def test_global_adminform_view_post_redirects(superuser):
     country = Country.objects.create(name="France")
     url = reverse("admin:django_boosted_boostedview_global_action_view")

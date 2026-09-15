@@ -143,6 +143,21 @@ def resync_all(request, form=None):
     return {"form": ResyncForm(), "save_label": "Run resync"}
 ```
 
+To render fields as Django admin readonly (plain text, not an input), return
+`readonly_fields`. Works with a regular `Form` or a `ModelForm`. Include the
+key on every return that still shows the form:
+
+```python
+@admin_boost_global_view("adminform", "Generate token")
+def generate_token(request, form=None):
+    if form is not None:
+        return {
+            "form": ResultForm(initial={"token": token, "url": url}),
+            "readonly_fields": ["token", "url"],
+        }
+    return {"form": GenerateForm(), "readonly_fields": ["token", "url"]}
+```
+
 For several buttons (with a color class each), return `save_buttons`; inspect
 `request.POST` to know which one was pressed. Available classes: `default`,
 `success`, `info`, `warning`, `danger`, `primary`, `secondary`.

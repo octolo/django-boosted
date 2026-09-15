@@ -2,12 +2,45 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Callable
 
 from django.http import HttpResponse, HttpResponseBase
 from django.template.response import TemplateResponse
 
 from .base import ViewGenerator
+
+
+def _adminform(form, payload, model_admin):
+    """Build Django's AdminForm, honoring ``readonly_fields`` from the payload."""
+    from django.contrib.admin.helpers import AdminForm
+    from django.forms import ModelForm
+
+    readonly = ()
+    if isinstance(payload, dict):
+        readonly = tuple(payload.get("readonly_fields") or ())
+
+    # AdminReadonlyField expects a ModelForm (_meta + instance).
+    if readonly and not isinstance(form, ModelForm):
+        form._meta = SimpleNamespace(
+            labels={name: field.label for name, field in form.fields.items()},
+            help_texts={
+                name: field.help_text or "" for name, field in form.fields.items()
+            },
+            model=model_admin.model,
+        )
+        form.instance = model_admin.model()
+        for name in readonly:
+            if name in form.fields:
+                setattr(form.instance, name, form[name].value() or "")
+
+    return AdminForm(
+        form,
+        [(None, {"fields": list(form.fields.keys())})],
+        {},
+        readonly_fields=readonly,
+        model_admin=model_admin,
+    )
 
 
 class AdminFormViewMixin(ViewGenerator):
@@ -24,7 +57,7 @@ class AdminFormViewMixin(ViewGenerator):
         permission: str = "view",
         hidden: bool = False,
     ) -> Callable:
-        from django.contrib.admin.helpers import AdminErrorList, AdminForm
+        from django.contrib.admin.helpers import AdminErrorList
         from django.forms import Form
 
         def wrapper(request, object_id=None, *args, **kwargs):
@@ -89,15 +122,7 @@ class AdminFormViewMixin(ViewGenerator):
             context = self._build_base_context(request, obj)
             context["title"] = label
 
-            fieldsets = [(None, {"fields": list(form.fields.keys())})]
-
-            adminform = AdminForm(
-                form,
-                fieldsets,
-                {},
-                readonly_fields=(),
-                model_admin=self.model_admin,
-            )
+            adminform = _adminform(form, payload, self.model_admin)
 
             # Get permission values from payload or model_admin defaults
             has_add_perm = (
@@ -152,13 +177,8 @@ class AdminFormViewMixin(ViewGenerator):
                     new_form = payload["form"]
                     if new_form != form:
                         form = new_form
-                        fieldsets = [(None, {"fields": list(form.fields.keys())})]
-                        context["adminform"] = AdminForm(
-                            form,
-                            fieldsets,
-                            {},
-                            readonly_fields=(),
-                            model_admin=self.model_admin,
+                        context["adminform"] = _adminform(
+                            form, payload, self.model_admin
                         )
                         context["errors"] = AdminErrorList(form, [])
                         context["media"] = self.model_admin.media + form.media
