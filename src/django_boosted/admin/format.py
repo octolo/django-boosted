@@ -1,7 +1,7 @@
 """Formatting utilities for django-boosted."""
 
-from django.utils.html import format_html
 from django.templatetags.static import static
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 _REVEAL_JS = (
@@ -11,6 +11,7 @@ _REVEAL_JS = (
     "s=v.style.display!=='none';"
     "v.style.display=s?'none':'';"
     "m.style.display=s?'':'none';"
+    "this.setAttribute('aria-expanded',String(!s));"
 )
 
 
@@ -21,14 +22,16 @@ def reveal_html(content, mask="••••••••"):
         '<span class="boost-secret">'
         '<span class="boost-secret-mask">{}</span>'
         '<span class="boost-secret-value" style="display:none">{}</span>'
-        '</span>'
-        '<img class="boost-reveal-toggle" src="{}" alt="{}" '
-        'onclick="' + _REVEAL_JS + '">'
-        '</span>',
+        "</span>"
+        '<button type="button" class="boost-reveal-toggle" aria-label="{}" '
+        'aria-expanded="false" onclick="' + _REVEAL_JS + '">'
+        '<img src="{}" alt="">'
+        "</button>"
+        "</span>",
         mask,
         content,
-        static("admin/img/icon-viewlink.svg"),
         _("Reveal"),
+        static("admin/img/icon-viewlink.svg"),
     )
 
 
@@ -96,17 +99,19 @@ def format_status(
 ) -> str:
     icon = "✓" if status else "✗"
     status_class = "success" if status else "error"
-    tag = "a" if link else "span"
-    return format_html(
-        '<{} href="{}"><span class="boost-status {}" style="{}">{}</span> '
-        '<code>{}</code></{}>',
-        tag,
-        link,
+    content = format_html(
+        '<span class="boost-status {}" style="{}">{}</span> <code>{}</code>',
         status_class,
         style,
         icon,
         name,
-        tag,
+    )
+    if not link:
+        return format_html("<span>{}</span>", content)
+    return format_html(
+        '<a href="{}">{}</a>',
+        link,
+        content,
     )
 
 

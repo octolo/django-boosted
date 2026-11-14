@@ -3,22 +3,6 @@
 import os
 from pathlib import Path
 
-try:
-    from dotenv import load_dotenv  # type: ignore[import-not-found]
-
-    env_path = Path(__file__).resolve().parent.parent / ".env"
-    if env_path.exists():
-        load_dotenv(env_path)
-        print(f"✓ Environment variables loaded from {env_path}")
-except ImportError:
-    print("⚠️ python-dotenv not installed. Install with: pip install python-dotenv")
-
-
-def _env(key: str, default: str = "") -> str:
-    """Shortcut to fetch environment variables with defaults."""
-    return os.getenv(key, default)
-
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("SECRET_KEY", "test-secret-key-for-django-geoaddress")

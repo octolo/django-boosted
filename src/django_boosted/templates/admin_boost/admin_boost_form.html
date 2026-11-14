@@ -39,7 +39,6 @@
 {% else %}
   <div class="errornote">
     <p>{% trans "No form available in context." %}</p>
-    <p>Debug: form variable is {{ form|default:"not set" }}</p>
   </div>
 {% endif %}
 {% endblock %}

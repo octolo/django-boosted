@@ -43,9 +43,7 @@ class BoostedViewAdmin(AdminBoostModel):
     def changelist_view(self, request, extra_context=None):
         return redirect("admin:index")
 
-    def changeform_view(
-        self, request, object_id=None, form_url="", extra_context=None
-    ):
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         # The virtual host has no table; the default add/change pages would hit
         # a missing table. Global views are served from their own URLs.
         return redirect("admin:index")

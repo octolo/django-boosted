@@ -2,14 +2,43 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from django.contrib.admin.utils import unquote
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBase
+from django.shortcuts import redirect, resolve_url
 from django.template.response import TemplateResponse
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
+from django.utils.http import url_has_allowed_host_and_scheme
+
+from ..permissions import has_configured_permission, requires_change_permission
+
+
+def redirect_to_allowed_url(request, target, fallback="admin:index"):
+    if not isinstance(target, str):
+        return redirect(fallback)
+    allowed_hosts = {request.get_host()}
+    if "/" in target:
+        if url_has_allowed_host_and_scheme(
+            target,
+            allowed_hosts=allowed_hosts,
+            require_https=request.is_secure(),
+        ):
+            return redirect(target)
+        return redirect(fallback)
+    try:
+        resolved = resolve_url(target)
+    except NoReverseMatch:
+        return redirect(fallback)
+    if resolved.startswith("/") and url_has_allowed_host_and_scheme(
+        resolved,
+        allowed_hosts=allowed_hosts,
+        require_https=request.is_secure(),
+    ):
+        return redirect(resolved)
+    return redirect(fallback)
 
 
 @dataclass
@@ -26,19 +55,32 @@ class ViewGenerator:
     def __init__(self, model_admin):
         self.model_admin = model_admin
 
-    def _check_permissions(self, request, object_id=None):
+    def _check_permissions(
+        self,
+        request,
+        object_id=None,
+        *,
+        permission="view",
+        require_change=False,
+    ):
+        obj = None
         if object_id:
             obj = self.model_admin.get_object(request, unquote(object_id))
             if obj is None:
                 return None, self.model_admin._get_obj_does_not_exist_redirect(
                     request, self.model_admin.model._meta, object_id
                 )
-            if not self.model_admin.has_view_permission(request, obj):
-                raise PermissionDenied
-            return obj, None
-        if not self.model_admin.has_view_permission(request):
+        if not has_configured_permission(
+            self.model_admin, request, permission, obj=obj
+        ):
             raise PermissionDenied
-        return None, None
+        if (
+            require_change
+            and requires_change_permission(permission)
+            and not self.model_admin.has_change_permission(request, obj)
+        ):
+            raise PermissionDenied
+        return obj, None
 
     def _build_base_context(self, request, obj=None):
         opts = self.model_admin.model._meta
@@ -89,8 +131,14 @@ class ViewGenerator:
         config: ViewConfig,
     ) -> Callable:
         if config.requires_object:
+
             def wrapper(request, object_id=None, *args, **kwargs):
-                obj, redirect = self._check_permissions(request, object_id)
+                obj, redirect = self._check_permissions(
+                    request,
+                    object_id,
+                    permission=config.permission,
+                    require_change=request.method == "POST",
+                )
                 if redirect:
                     return redirect
 
@@ -107,8 +155,14 @@ class ViewGenerator:
                 request.current_app = self.model_admin.admin_site.name
                 return TemplateResponse(request, config.template_name, context)
         else:
+
             def wrapper(request, *args, **kwargs):
-                _obj, redirect = self._check_permissions(request, None)
+                _obj, redirect = self._check_permissions(
+                    request,
+                    None,
+                    permission=config.permission,
+                    require_change=request.method == "POST",
+                )
                 if redirect:
                     return redirect
 

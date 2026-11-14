@@ -13,7 +13,7 @@ class SecretFieldMixin:
 
     def formfield(self, **kwargs):
         kwargs.setdefault("widget", RevealWidget)
-        return super().formfield(**kwargs)
+        return super().formfield(**kwargs)  # type: ignore[misc]
 
 
 class SecretCharField(SecretFieldMixin, models.CharField):
@@ -30,6 +30,8 @@ class SecretJsonField(SecretFieldMixin, models.JSONField):
 
 class AuditUserValue(str):
     """String subclass with admin_url property for linking to the user in admin."""
+
+    _pk: int | None
 
     def __new__(cls, value, pk=None):
         if value is None:
@@ -51,9 +53,7 @@ class AuditUserValue(str):
         User = apps.get_model(settings.AUTH_USER_MODEL)
         info = (User._meta.app_label, User._meta.model_name)
         try:
-            return reverse(
-                "admin:%s_%s_change" % info, args=[self._pk]
-            )
+            return reverse(f"admin:{info[0]}_{info[1]}_change", args=[self._pk])
         except NoReverseMatch:
             return None
 
@@ -64,7 +64,7 @@ def format_audit_user(user, format_fields=("pk", "username"), separator="_"):
         return None
     attr_map = {
         "pk": lambda u: u.pk,
-        "username": lambda u: getattr(u, "username", u.get_username()),
+        "username": lambda u: getattr(u, "username", None) or u.get_username(),
         "email": lambda u: getattr(u, "email", ""),
     }
     values = []
@@ -111,7 +111,9 @@ class AuditUserField(models.CharField):
         kwargs.setdefault("max_length", 255)
         kwargs.setdefault("blank", True)
         kwargs.setdefault("null", True)
-        kwargs.setdefault("default", getattr(settings, "DJANGO_BOOSTED_AUDIT_USER_FALLBACK", None))
+        kwargs.setdefault(
+            "default", getattr(settings, "DJANGO_BOOSTED_AUDIT_USER_FALLBACK", None)
+        )
         kwargs.setdefault("editable", False)
         super().__init__(*args, **kwargs)
 
@@ -135,7 +137,7 @@ class AuditUserField(models.CharField):
         pk = _parse_pk_from_value(value, separator)
         return AuditUserValue(value, pk=pk)
 
-    def from_db_value(self, value, expression, connection):
+    def from_db_value(self, value, _expression, _connection):
         if value is None:
             return None
         pk = _parse_pk_from_value(value, self.separator)

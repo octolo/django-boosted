@@ -18,7 +18,7 @@ The library provides:
    - Template rendering with proper context
 
 3. **Admin Mixins**:
-   - `AdminBoostMixin` for registering custom URLs
+   - `AdminBoostModel` for registering custom URLs
    - Automatic injection of object-tool buttons into change forms
    - Integration with Django admin's permission system
 

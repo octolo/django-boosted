@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import copy
-from typing import Iterable
 
 from django.contrib import messages
 from django.contrib.admin import ModelAdmin
-from django.utils.translation import gettext_lazy as _
 from django.contrib.admin.utils import unquote
 from django.urls import path, reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.translation import gettext_lazy as _
 
 from .fieldsets import add_to_fieldset, remove_from_fieldset
-from .format import format_label, format_status, format_with_help_text, boolean_icon_html
+from .format import (
+    boolean_icon_html,
+    format_label,
+    format_status,
+    format_with_help_text,
+)
 from .tools import (
+    get_boost_list_links,
     get_boost_list_tools,
+    get_boost_object_links,
     get_boost_object_tools,
     get_boost_view_config,
     get_boost_view_names,
@@ -25,6 +31,7 @@ from .views import ViewGenerator, setup_boost_views
 
 class AdminBoostFormat:
     """Admin format mixin."""
+
     format_label = staticmethod(format_label)
     format_status = staticmethod(format_status)
     format_with_help_text = staticmethod(format_with_help_text)
@@ -34,7 +41,7 @@ class AdminBoostFormat:
 class AdminBoostModel(ModelAdmin, AdminBoostFormat):
     change_form_template = "admin_boost/change_form.html"
     change_list_template = "admin_boost/change_list.html"
-    boost_views: Iterable[str] = ()
+    boost_views: tuple[str, ...] = ()
 
     class Media:
         css = {
@@ -47,6 +54,8 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
     get_boost_view_config = get_boost_view_config
     get_boost_object_tools = get_boost_object_tools
     get_boost_list_tools = get_boost_list_tools
+    get_boost_object_links = get_boost_object_links
+    get_boost_list_links = get_boost_list_links
 
     def get_urls(self):
         urls = super().get_urls()
@@ -82,7 +91,7 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
 
     def __init__(self, *args, **kwargs):
         if hasattr(self, "fieldsets") and self.fieldsets is not None:
-            self.fieldsets = copy.deepcopy(self.fieldsets)
+            self.fieldsets = copy.deepcopy(self.fieldsets)  # type: ignore[misc]
         if hasattr(self, "change_fieldsets"):
             self.change_fieldsets()
         super().__init__(*args, **kwargs)
@@ -94,21 +103,11 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
                 self.boost_views += (func._admin_boost_view_config["name"],)
         setup_boost_views(self, view_generator)
 
-    def has_change_permission(self, request, obj=None):
-        """Allow change form if custom actions are defined."""
-        if getattr(self, "changeform_actions", None):
-            return True
-        if any(
-            getattr(getattr(self, name), "_changeform_action_config", None)
-            for name in dir(self)
-        ):
-            return True
-        return super().has_change_permission(request, obj)
-
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
         items = list(extra_context.get("object_tools_items") or [])
         items.extend(self.get_boost_list_tools(request))
+        items.extend(self.get_boost_list_links(request))
         extra_context["object_tools_items"] = items
         return super().changelist_view(request, extra_context)
 
@@ -119,38 +118,19 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
             obj = self.get_object(request, unquote(object_id))
             items = list(extra_context.get("object_tools_items") or [])
             items.extend(self.get_boost_object_tools(request, object_id))
+            if obj is not None:
+                items.extend(self.get_boost_object_links(request, obj))
             extra_context["object_tools_items"] = items
 
         if "submit_actions" not in extra_context:
             extra_context["submit_actions"] = self.get_submit_actions(request, obj)
 
         if request.method == "POST":
-            submit_actions = extra_context.get("submit_actions", {})
-            django_actions = {
-                "_save", "_saveasnew", "_addanother", "_continue",
-                "_saveas", "_save_and_continue",
-            }
-            for action_name in submit_actions.keys():
-                if action_name in request.POST and action_name not in django_actions:
-                    custom_response = self.handle_custom_action(
-                        action_name, request, object_id
-                    )
-                    if custom_response is not None:
-                        return custom_response
-                    from django.shortcuts import redirect
-                    url = request.build_absolute_uri(request.path)
-                    if url_has_allowed_host_and_scheme(
-                        url, allowed_hosts=request.get_host()
-                    ):
-                        redirect_url = request.path
-                    else:
-                        opts = self.model._meta
-                        redirect_url = reverse(
-                            f"admin:{opts.app_label}_{opts.model_name}_change",
-                            args=[object_id] if object_id else [],
-                            current_app=self.admin_site.name,
-                        )
-                    return redirect(redirect_url)
+            custom_response = self._response_for_posted_action(
+                request, object_id, extra_context.get("submit_actions", {})
+            )
+            if custom_response is not None:
+                return custom_response
 
         return super().changeform_view(
             request,
@@ -158,6 +138,39 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
             form_url=form_url,
             extra_context=extra_context,
         )
+
+    def _response_for_posted_action(self, request, object_id, submit_actions):
+        django_actions = {
+            "_save",
+            "_saveasnew",
+            "_addanother",
+            "_continue",
+            "_saveas",
+            "_save_and_continue",
+        }
+        for action_name in submit_actions:
+            if action_name not in request.POST or action_name in django_actions:
+                continue
+            custom_response = self.handle_custom_action(action_name, request, object_id)
+            if custom_response is not None:
+                return custom_response
+            return self._redirect_after_custom_action(request, object_id)
+        return None
+
+    def _redirect_after_custom_action(self, request, object_id):
+        from django.shortcuts import redirect
+
+        url = request.build_absolute_uri(request.path)
+        if url_has_allowed_host_and_scheme(url, allowed_hosts=request.get_host()):
+            redirect_url = request.path
+        else:
+            opts = self.model._meta
+            redirect_url = reverse(
+                f"admin:{opts.app_label}_{opts.model_name}_change",
+                args=[object_id] if object_id else [],
+                current_app=self.admin_site.name,
+            )
+        return redirect(redirect_url)
 
     def handle_custom_action(self, action_name, request, object_id=None):
         """Handle custom form actions. Override handle_<action_name>."""
@@ -167,7 +180,10 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
 
         messages.warning(
             request,
-            _("Action '%(action)s' is defined but no handler method 'handle_%(action)s' exists.")
+            _(
+                "Action '%(action)s' is defined but no handler method "
+                "'handle_%(action)s' exists."
+            )
             % {"action": action_name},
         )
         return None
@@ -179,10 +195,10 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
             if callable(perm_method):
                 return perm_method(request, obj)
             return perm_method
-        return True
+        return super().has_change_permission(request, obj)
 
     def get_submit_actions(self, request, obj=None):
-        """Return dict of custom submit actions. Uses changeform_actions and @admin_boost_action."""
+        """Return submit actions from changeform_actions and decorators."""
         changeform_actions = dict(getattr(self, "changeform_actions", None) or {})
         for attr_name in dir(self):
             attr = getattr(self, attr_name)

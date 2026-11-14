@@ -2,37 +2,54 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Callable
 
+from django.contrib.admin.helpers import AdminErrorList, AdminForm
+from django.forms import Form, ModelForm
 from django.http import HttpResponse, HttpResponseBase
 from django.template.response import TemplateResponse
 
-from .base import ViewGenerator
+from .base import ViewGenerator, redirect_to_allowed_url
+
+_NO_FORM = object()
+_SAVE_BUTTON_CLASSES = {
+    "default",
+    "success",
+    "info",
+    "warning",
+    "danger",
+    "primary",
+    "secondary",
+}
+
+
+def _readonly_names(payload) -> tuple:
+    if isinstance(payload, dict):
+        return tuple(payload.get("readonly_fields") or ())
+    return ()
+
+
+def _adapt_plain_form(form, readonly, model_admin) -> None:
+    """Give a plain form the ModelForm surface AdminReadonlyField expects."""
+    if isinstance(form, ModelForm):
+        return
+    form._meta = SimpleNamespace(
+        labels={name: field.label for name, field in form.fields.items()},
+        help_texts={name: field.help_text or "" for name, field in form.fields.items()},
+        model=model_admin.model,
+    )
+    form.instance = model_admin.model()
+    for name in readonly:
+        if name in form.fields:
+            setattr(form.instance, name, form[name].value() or "")
 
 
 def _adminform(form, payload, model_admin):
     """Build Django's AdminForm, honoring ``readonly_fields`` from the payload."""
-    from django.contrib.admin.helpers import AdminForm
-    from django.forms import ModelForm
-
-    readonly = ()
-    if isinstance(payload, dict):
-        readonly = tuple(payload.get("readonly_fields") or ())
-
-    # AdminReadonlyField expects a ModelForm (_meta + instance).
-    if readonly and not isinstance(form, ModelForm):
-        form._meta = SimpleNamespace(
-            labels={name: field.label for name, field in form.fields.items()},
-            help_texts={
-                name: field.help_text or "" for name, field in form.fields.items()
-            },
-            model=model_admin.model,
-        )
-        form.instance = model_admin.model()
-        for name in readonly:
-            if name in form.fields:
-                setattr(form.instance, name, form[name].value() or "")
+    readonly = _readonly_names(payload)
+    if readonly:
+        _adapt_plain_form(form, readonly, model_admin)
 
     return AdminForm(
         form,
@@ -41,6 +58,119 @@ def _adminform(form, payload, model_admin):
         readonly_fields=readonly,
         model_admin=model_admin,
     )
+
+
+def _call_view(
+    view_func,
+    request,
+    obj,
+    requires_object,
+    args,
+    kwargs,
+    *,
+    form=_NO_FORM,
+):
+    call_args = (request, obj, *args) if requires_object else (request, *args)
+    call_kwargs = dict(kwargs)
+    if form is not _NO_FORM:
+        call_kwargs["form"] = form
+    return view_func(*call_args, **call_kwargs)
+
+
+def _bind_form(form, request):
+    if isinstance(form, ModelForm):
+        return form.__class__(
+            request.POST,
+            request.FILES,
+            instance=getattr(form, "instance", None),
+        )
+    return form.__class__(request.POST, request.FILES)
+
+
+def _process_post(
+    request,
+    view_func,
+    obj,
+    form,
+    payload,
+    requires_object,
+    args,
+    kwargs,
+):
+    if request.method != "POST":
+        return form, payload, None
+
+    form = _bind_form(form, request)
+    if not form.is_valid():
+        if isinstance(payload, dict):
+            payload["form"] = form
+        return form, payload, None
+
+    result = _call_view(
+        view_func,
+        request,
+        obj,
+        requires_object,
+        args,
+        kwargs,
+        form=form,
+    )
+    if isinstance(result, (HttpResponse, HttpResponseBase)):
+        return form, payload, result
+    if isinstance(result, dict) and "redirect_url" in result:
+        return form, result, redirect_to_allowed_url(request, result["redirect_url"])
+    if isinstance(result, dict):
+        return result.get("form", form), result, None
+    return form, payload, None
+
+
+def _permission_value(payload, key, default):
+    if isinstance(payload, dict) and key in payload:
+        return payload[key]
+    return default
+
+
+def _form_from_payload(payload):
+    if isinstance(payload, dict):
+        return payload.get("form")
+    if isinstance(payload, Form):
+        return payload
+    return None
+
+
+def _sanitize_save_buttons(buttons):
+    sanitized = []
+    for button in buttons or []:
+        item = dict(button)
+        if item.get("class") not in _SAVE_BUTTON_CLASSES:
+            item["class"] = "default"
+        sanitized.append(item)
+    return sanitized
+
+
+def _merge_payload_context(context, payload, form, model_admin):
+    if not isinstance(payload, dict):
+        return
+
+    new_form = payload.get("form", form)
+    if new_form != form:
+        form = new_form
+        context["adminform"] = _adminform(form, payload, model_admin)
+        context["errors"] = AdminErrorList(form, [])
+        context["media"] = model_admin.media + form.media
+
+    excluded_keys = {
+        "form",
+        "has_add_permission",
+        "has_change_permission",
+        "has_delete_permission",
+    }
+    extra_context = {k: v for k, v in payload.items() if k not in excluded_keys}
+    if "save_buttons" in extra_context:
+        extra_context["save_buttons"] = _sanitize_save_buttons(
+            extra_context["save_buttons"]
+        )
+    context.update(extra_context)
 
 
 class AdminFormViewMixin(ViewGenerator):
@@ -57,31 +187,29 @@ class AdminFormViewMixin(ViewGenerator):
         permission: str = "view",
         hidden: bool = False,
     ) -> Callable:
-        from django.contrib.admin.helpers import AdminErrorList
-        from django.forms import Form
-
         def wrapper(request, object_id=None, *args, **kwargs):
             obj, redirect = self._check_permissions(
-                request, object_id if requires_object else None
+                request,
+                object_id if requires_object else None,
+                permission=permission,
+                require_change=request.method == "POST",
             )
             if redirect:
                 return redirect
 
-            payload = (
-                view_func(request, obj, *args, **kwargs)
-                if requires_object
-                else view_func(request, *args, **kwargs)
+            payload = _call_view(
+                view_func,
+                request,
+                obj,
+                requires_object,
+                args,
+                kwargs,
             )
 
             if isinstance(payload, (HttpResponse, HttpResponseBase)):
                 return payload
 
-            if isinstance(payload, dict):
-                form = payload.get("form")
-            elif isinstance(payload, Form):
-                form = payload
-            else:
-                form = None
+            form = _form_from_payload(payload)
 
             if form is None:
                 raise ValueError(
@@ -89,35 +217,18 @@ class AdminFormViewMixin(ViewGenerator):
                     "'form' key"
                 )
 
-            if request.method == "POST":
-                from django.forms import ModelForm
-                # Only pass instance for ModelForm, not regular Form
-                if isinstance(form, ModelForm):
-                    instance = getattr(form, "instance", None)
-                    form = form.__class__(
-                        request.POST, request.FILES, instance=instance
-                    )
-                else:
-                    form = form.__class__(request.POST, request.FILES)
-                if form.is_valid():
-                    result = (
-                        view_func(request, obj, form=form, *args, **kwargs)
-                        if requires_object
-                        else view_func(request, form=form, *args, **kwargs)
-                    )
-                    if isinstance(result, (HttpResponse, HttpResponseBase)):
-                        return result
-                    if isinstance(result, dict) and "redirect_url" in result:
-                        from django.shortcuts import redirect as django_redirect
-                        return django_redirect(result["redirect_url"])
-                    form = (
-                        result.get("form", form) if isinstance(result, dict) else form
-                    )
-                    if isinstance(result, dict):
-                        payload = result
-                else:
-                    if isinstance(payload, dict):
-                        payload["form"] = form
+            form, payload, response = _process_post(
+                request,
+                view_func,
+                obj,
+                form,
+                payload,
+                requires_object,
+                args,
+                kwargs,
+            )
+            if response is not None:
+                return response
 
             context = self._build_base_context(request, obj)
             context["title"] = label
@@ -125,20 +236,20 @@ class AdminFormViewMixin(ViewGenerator):
             adminform = _adminform(form, payload, self.model_admin)
 
             # Get permission values from payload or model_admin defaults
-            has_add_perm = (
-                payload.get("has_add_permission")
-                if isinstance(payload, dict) and "has_add_permission" in payload
-                else self.model_admin.has_add_permission(request)
+            has_add_perm = _permission_value(
+                payload,
+                "has_add_permission",
+                self.model_admin.has_add_permission(request),
             )
-            has_change_perm = (
-                payload.get("has_change_permission")
-                if isinstance(payload, dict) and "has_change_permission" in payload
-                else self.model_admin.has_change_permission(request, obj)
+            has_change_perm = _permission_value(
+                payload,
+                "has_change_permission",
+                self.model_admin.has_change_permission(request, obj),
             )
-            has_delete_perm = (
-                payload.get("has_delete_permission")
-                if isinstance(payload, dict) and "has_delete_permission" in payload
-                else self.model_admin.has_delete_permission(request, obj)
+            has_delete_perm = _permission_value(
+                payload,
+                "has_delete_permission",
+                self.model_admin.has_delete_permission(request, obj),
             )
 
             context.update(
@@ -172,24 +283,7 @@ class AdminFormViewMixin(ViewGenerator):
                 }
             )
 
-            if isinstance(payload, dict):
-                if "form" in payload:
-                    new_form = payload["form"]
-                    if new_form != form:
-                        form = new_form
-                        context["adminform"] = _adminform(
-                            form, payload, self.model_admin
-                        )
-                        context["errors"] = AdminErrorList(form, [])
-                        context["media"] = self.model_admin.media + form.media
-
-                excluded_keys = {
-                    "form", "has_add_permission", "has_change_permission",
-                    "has_delete_permission",
-                }
-                context.update(
-                    {k: v for k, v in payload.items() if k not in excluded_keys}
-                )
+            _merge_payload_context(context, payload, form, self.model_admin)
 
             request.current_app = self.model_admin.admin_site.name
             return TemplateResponse(request, template_name, context)

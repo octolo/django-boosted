@@ -28,9 +28,9 @@ These rules must always be followed.
 - Do not invent new services, commands, abstractions, patterns, or architectures
 - Do not refactor, redesign, or optimize unless explicitly requested
 - Do not manipulate `sys.path`
-- Do not use filesystem-based imports to access `qualitybase` or `django_boosted`
+- Do not use filesystem-based imports to access `django_boosted`
 - Do not hardcode secrets, credentials, tokens, or API keys
-- Do not execute tooling commands outside the approved entry points
+- Use the tools configured in `pyproject.toml`
 - **Comments**: Only add comments to resolve ambiguity or uncertainty. Do not comment obvious code.
 - **Dependencies**: Add dependencies only when absolutely necessary. Prefer standard library always.
 - If a request violates this document:
@@ -69,7 +69,7 @@ These rules must always be followed.
 
 ### Core Functionality
 
-1. **Admin View Extensions** (`admin/views.py`)
+1. **Admin View Extensions** (`admin/views/`)
    - Custom views for Django admin (list, form, message, JSON views)
    - Automatic permission checking
    - Context building
@@ -78,8 +78,8 @@ These rules must always be followed.
    - `@admin_boost_view` decorator for defining custom admin views
    - Automatic object fetching and permission checking
 
-3. **Admin Mixins** (`admin/model.py`)
-   - `AdminBoostMixin` for registering custom URLs
+3. **Admin model** (`admin/model.py`)
+   - `AdminBoostModel` for registering custom URLs
    - Automatic injection of object-tool buttons
 
 4. **Templates** (`templates/admin_boost/`)
@@ -94,11 +94,7 @@ These rules must always be followed.
 
 ## Architecture (REQUIRED)
 
-- Service-based architecture with domain-specific modules
-- Unified entry point via `service.py`
-- Automatic virtual environment management
-- Consistent interface across Python projects
-- Django admin integration through mixins and decorators
+- Domain-specific modules with Django admin integration through models and decorators
 
 ---
 
@@ -108,9 +104,9 @@ These rules must always be followed.
 django-boosted/
 ├── src/django_boosted/       # Main package
 │   ├── admin/                # Admin utilities
-│   │   ├── model.py         # AdminBoostMixin, AdminBoostModel
-│   │   ├── views.py         # ViewGenerator
-│   │   ├── views_setup.py   # View setup logic
+│   │   ├── model.py         # AdminBoostModel
+│   │   ├── permissions.py   # Permission helpers
+│   │   ├── views/           # ViewGenerator and setup
 │   │   └── ...
 │   ├── models/              # Django models
 │   ├── managers/            # Custom managers
@@ -120,7 +116,6 @@ django-boosted/
 │   └── decorators.py        # Main decorators
 ├── tests/                   # Test suite
 ├── docs/                    # Documentation
-├── service.py               # Main service entry point
 └── pyproject.toml           # Project configuration
 ```
 
@@ -134,11 +129,10 @@ django-boosted/
 
 ---
 
-## Command Execution (ABSOLUTE)
+## Command Execution
 
-- **Always use**: `./service.py dev <command>` or `python dev.py <command>`
-- **Always use**: `./service.py quality <command>` or `python quality.py <command>`
-- Never execute commands directly without going through these entry points
+- Install tools with `python -m pip install -e ".[dev]"`
+- Run Ruff, mypy, pytest, Bandit and pip-audit as Python modules
 
 ---
 
@@ -195,24 +189,13 @@ django-boosted/
 
 - `django_boosted` is an installed package
 - Always use standard Python imports:
-  - `from django_boosted.admin import AdminBoostMixin`
+  - `from django_boosted import AdminBoostModel`
   - `from django_boosted.decorators import admin_boost_view`
   - `from django_boosted.admin.views import ViewGenerator`
 - Never manipulate import paths
 - Never use file-based or relative imports to access `django_boosted`
 - For dynamic imports, use:
   - `importlib.import_module()` from the standard library
-
----
-
-## Qualitybase Integration (ABSOLUTE)
-
-- `qualitybase` is an installed package (dependency)
-- Always use standard Python imports from `qualitybase.services`
-- No path manipulation: Never manipulate `sys.path` or use file paths to import qualitybase modules
-- Direct imports only: Use `from qualitybase.services import ...` or `import qualitybase.services ...`
-- Standard library imports: Use `importlib.import_module()` from the standard library if needed for dynamic imports
-- Works everywhere: Since qualitybase is installed in the virtual environment, imports work consistently across all projects
 
 ---
 
@@ -229,23 +212,12 @@ django-boosted/
 
 - Use `@admin_boost_view` decorator for defining custom views
 - Decorator automatically handles object fetching and permission checking
-- Views are automatically registered through `AdminBoostMixin`
+- Views are automatically registered through `AdminBoostModel`
 
-### Mixins
+### Model admin
 
-- `AdminBoostMixin` registers custom URLs and injects object-tool buttons
-- Mixin integrates with Django admin's existing infrastructure
-- Always use mixin with `admin.ModelAdmin`
-
----
-
-## Environment Variables (REQUIRED)
-
-- `ENVFILE_PATH`
-  - Path to `.env` file to load automatically
-  - Relative to project root if not absolute
-- `ENSURE_VIRTUALENV`
-  - Set to `1` to automatically activate `.venv` if it exists
+- `AdminBoostModel` registers custom URLs and injects object-tool buttons
+- It subclasses and integrates with Django's `admin.ModelAdmin`
 
 ---
 

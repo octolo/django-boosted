@@ -11,10 +11,9 @@ django-boosted/
 │       ├── __init__.py       # Package exports
 │       ├── admin/            # Admin utilities
 │       │   ├── __init__.py   # Admin exports
-│       │   ├── model.py      # AdminBoostMixin and AdminBoostModel
-│       │   ├── views.py      # ViewGenerator class
-│       │   ├── views_setup.py # View setup logic
-│       │   ├── decorators.py # @admin_boost_view decorator
+│       │   ├── model.py      # AdminBoostModel
+│       │   ├── permissions.py # Permission helpers
+│       │   ├── views/        # View generators and setup logic
 │       │   ├── fieldsets.py # Fieldset utilities
 │       │   ├── format.py    # Formatting utilities
 │       │   ├── tools.py     # Admin tools
@@ -38,7 +37,6 @@ django-boosted/
 │   └── ...
 ├── docs/                     # Documentation
 │   └── ...
-├── service.py                # Main service entry point
 ├── pyproject.toml            # Project configuration
 └── README.md                 # Project documentation
 ```
@@ -55,10 +53,10 @@ django-boosted/
 
 The `admin/` directory contains Django admin utilities:
 
-- **`model.py`**: `AdminBoostMixin` and `AdminBoostModel` classes
-- **`views.py`**: `ViewGenerator` class for creating admin views
-- **`views_setup.py`**: Logic for setting up views from decorators
-- **`decorators.py`**: `@admin_boost_view` decorator (re-exported from main decorators module)
+- **`model.py`**: `AdminBoostModel`
+- **`permissions.py`**: model view permission resolution
+- **`views/`**: `ViewGenerator`, specialized view types, and decorator setup
+- **`../decorators.py`**: `@admin_boost_view` and `@admin_boost_action`
 - **`urls.py`**: URL registration utilities
 - **`fieldsets.py`**: Fieldset manipulation utilities
 - **`format.py`**: Formatting utilities for admin

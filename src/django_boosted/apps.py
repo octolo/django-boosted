@@ -22,13 +22,16 @@ class DjangoBoostedConfig(AppConfig):
 
         if not admin.site.is_registered(UrlModel):
             from django_boosted.admin.urls import UrlAdmin
+
             admin.site.register(UrlModel, UrlAdmin)
 
-        from django_boosted.models.settings import SettingModel
+        if getattr(settings, "DJANGO_BOOSTED_ENABLE_SETTINGS_ADMIN", False):
+            from django_boosted.models.settings import SettingModel
 
-        if not admin.site.is_registered(SettingModel):
-            from django_boosted.admin.settings import SettingAdmin
-            admin.site.register(SettingModel, SettingAdmin)
+            if not admin.site.is_registered(SettingModel):
+                from django_boosted.admin.settings import SettingAdmin
+
+                admin.site.register(SettingModel, SettingAdmin)
 
         from django_boosted.admin.views.global_admin import BoostedViewAdmin
         from django_boosted.models.global_view import BoostedView

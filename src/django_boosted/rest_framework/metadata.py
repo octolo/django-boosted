@@ -1,6 +1,6 @@
 """DRF utilities for django-boosted."""
 
-from rest_framework.metadata import SimpleMetadata  # type: ignore[import-not-found]
+from rest_framework.metadata import SimpleMetadata  # type: ignore[import-untyped]
 
 
 class BoostedRestFrameworkMetadata(SimpleMetadata):

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass
@@ -52,10 +52,31 @@ def admin_boost_view(
 def admin_boost_action(action_name: str, label: str):
     """Register a changeform action. Populates changeform_actions automatically.
     Requires a handle_<action_name> method to process the action."""
+
     def decorator(func: Callable) -> Callable:
         func._changeform_action_config = {  # type: ignore[attr-defined]
             "name": action_name,
             "label": label,
         }
         return func
+
+    return decorator
+
+
+def admin_boost_link(
+    label: str,
+    *,
+    permission: str = "view",
+    requires_object: bool = True,
+):
+    """Register a direct link in the admin object or list tools."""
+
+    def decorator(func: Callable) -> Callable:
+        func._admin_boost_link_config = {  # type: ignore[attr-defined]
+            "label": label,
+            "permission": permission,
+            "requires_object": requires_object,
+        }
+        return func
+
     return decorator

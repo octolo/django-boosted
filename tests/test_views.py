@@ -5,13 +5,13 @@ from django.contrib.auth import get_user_model
 from django.test import Client as DjangoClient
 from django.urls import reverse
 
-from tests.app.models import Country
+from tests.app.models import City, Country
 
 
 @pytest.fixture()
 def superuser(db):
     User = get_user_model()
-    return User.objects.create_superuser(
+    return User.objects.create_superuser(  # type: ignore[attr-defined]
         username="admin",
         email="admin@example.com",
         password=secrets.token_urlsafe(16),
@@ -28,7 +28,7 @@ def admin_client(superuser):
 @pytest.fixture()
 def staff_user(db):
     User = get_user_model()
-    return User.objects.create_user(
+    return User.objects.create_user(  # type: ignore[attr-defined]
         username="staff",
         email="staff@example.com",
         password=secrets.token_urlsafe(16),
@@ -39,7 +39,7 @@ def staff_user(db):
 @pytest.fixture()
 def plain_user(db):
     User = get_user_model()
-    return User.objects.create_user(
+    return User.objects.create_user(  # type: ignore[attr-defined]
         username="joe",
         email="joe@example.com",
         password=secrets.token_urlsafe(16),
@@ -67,6 +67,39 @@ def test_boost_view_renders_context(admin_client):
 
 
 @pytest.mark.django_db()
+def test_json_object_view_returns_json(admin_client):
+    country = Country.objects.create(name="France")
+    url = reverse("admin:tests_app_country_custom_json_object_view", args=[country.pk])
+
+    response = admin_client.get(url)
+
+    assert response.status_code == 200
+    assert response.json() == {"object_json": {"name": "Custom 1", "id": 1}}
+
+
+@pytest.mark.django_db()
+def test_form_object_view_renders_form(admin_client):
+    country = Country.objects.create(name="France")
+    url = reverse("admin:tests_app_country_custom_form_object_view", args=[country.pk])
+
+    response = admin_client.get(url)
+
+    assert response.status_code == 200
+    assert 'name="name"' in response.content.decode()
+
+
+@pytest.mark.django_db()
+def test_list_object_view_renders_queryset(admin_client):
+    country = Country.objects.create(name="France")
+    url = reverse("admin:tests_app_country_custom_list_object_view", args=[country.pk])
+
+    response = admin_client.get(url)
+
+    assert response.status_code == 200
+    assert "France" in response.content.decode()
+
+
+@pytest.mark.django_db()
 def test_redirect_view(admin_client):
     """Redirect view returns 302 and redirects to the expected URL."""
     country_obj = Country.objects.create(name="Bob")
@@ -91,6 +124,26 @@ def test_object_tools_button_is_visible(admin_client):
     assert response.status_code == 200
     content = response.content.decode()
     assert "Redirect to changelist" in content
+
+
+@pytest.mark.django_db()
+def test_direct_object_link_filters_related_admin_list(admin_client):
+    france = Country.objects.create(name="France")
+    germany = Country.objects.create(name="Germany")
+    City.objects.create(name="Paris", country=france)
+    City.objects.create(name="Berlin", country=germany)
+    change_url = reverse("admin:tests_app_country_change", args=[france.pk])
+
+    response = admin_client.get(change_url)
+
+    city_url = reverse("admin:tests_app_city_changelist")
+    filtered_url = f"{city_url}?country__id__exact={france.pk}"
+    assert filtered_url in response.content.decode()
+
+    city_response = admin_client.get(filtered_url)
+    content = city_response.content.decode()
+    assert "Paris" in content
+    assert "Berlin" not in content
 
 
 @pytest.mark.django_db()

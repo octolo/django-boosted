@@ -9,6 +9,8 @@ from django.contrib import admin
 from django.contrib.admin.models import LogEntry
 from django.contrib.admin.widgets import ForeignKeyRawIdWidget
 from django.contrib.auth import get_user_model
+from django.db.models import Model
+from django.db.models.fields.related import ForeignKey, ManyToOneRel
 from django.urls import reverse
 
 from django_boosted import AdminBoostFormat, admin_boost_global_view
@@ -18,18 +20,22 @@ from tests.app.models import Alphabet, Country
 User = get_user_model()
 
 
+def _raw_id_widget(model: type[Model], field_name: str) -> ForeignKeyRawIdWidget:
+    field = model._meta.get_field(field_name)
+    remote_field = getattr(field, "remote_field", None)
+    if not isinstance(field, ForeignKey) or not isinstance(remote_field, ManyToOneRel):
+        raise TypeError(f"{model.__name__}.{field_name} is not a foreign key")
+    return ForeignKeyRawIdWidget(remote_field, admin.site)
+
+
 class GlobalActionForm(forms.Form):
     user = forms.ModelChoiceField(
         queryset=User.objects.all(),
-        widget=ForeignKeyRawIdWidget(
-            LogEntry._meta.get_field("user").remote_field, admin.site
-        ),
+        widget=_raw_id_widget(LogEntry, "user"),
     )
     country = forms.ModelChoiceField(
         queryset=Country.objects.all(),
-        widget=ForeignKeyRawIdWidget(
-            Alphabet._meta.get_field("country").remote_field, admin.site
-        ),
+        widget=_raw_id_widget(Alphabet, "country"),
     )
 
 

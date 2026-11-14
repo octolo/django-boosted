@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from django.urls import NoReverseMatch, reverse
 
@@ -80,9 +80,7 @@ def get_index_views(request) -> list[dict]:
             url = reverse(f"admin:django_boosted_boostedview_{entry['name']}")
         except NoReverseMatch:
             continue
-        items.append(
-            {"label": entry["label"], "url": url, "order": entry["order"]}
-        )
+        items.append({"label": entry["label"], "url": url, "order": entry["order"]})
     for link in _index_links:
         if not check_permission(link["permission"], request):
             continue

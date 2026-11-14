@@ -6,7 +6,7 @@ _user = threading.local()
 
 
 def get_current_user():
-    """Return the current request user, or None if outside a request or not authenticated."""
+    """Return the current user, or None outside a request or if anonymous."""
     return getattr(_user, "value", None)
 
 

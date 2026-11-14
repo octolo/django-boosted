@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from django.http import HttpResponse, HttpResponseBase, JsonResponse
 
@@ -25,8 +25,14 @@ class JsonViewMixin(ViewGenerator):
     ) -> Callable:
 
         if requires_object:
+
             def wrapper(request, object_id=None, *args, **kwargs):
-                obj, redirect = self._check_permissions(request, object_id)
+                obj, redirect = self._check_permissions(
+                    request,
+                    object_id,
+                    permission=permission,
+                    require_change=request.method == "POST",
+                )
                 if redirect:
                     return redirect
 
@@ -37,8 +43,14 @@ class JsonViewMixin(ViewGenerator):
 
                 return JsonResponse(payload, safe=False)
         else:
+
             def wrapper(request, *args, **kwargs):
-                _obj, redirect = self._check_permissions(request, None)
+                _obj, redirect = self._check_permissions(
+                    request,
+                    None,
+                    permission=permission,
+                    require_change=request.method == "POST",
+                )
                 if redirect:
                     return redirect
 

@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-boosted"
-version = "1.0.4"
+version = "1.0.5"
 description = "Reusable helpers to register custom Django admin views and object tools."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -23,7 +23,7 @@ keywords = [
   "python",
 ]
 dependencies = [
-  "Django>=5.0,<6.0",
+  "Django>=5.2,<6.0",
   "django-virtualqueryset>=1.0.0",
 ]
 classifiers = [
@@ -33,6 +33,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
@@ -48,11 +49,16 @@ dev = [
   "pytest>=7.4",
   "pytest-django>=4.8",
   "ruff>=0.7.0",
-  "black>=24.8",
   "bandit>=1.7",
-  "safety>=3.2",
   "pip-audit>=2.7",
+  "mypy>=1.13",
+  "radon>=6.0",
+  "vulture>=2.14",
+  "coverage>=7.6",
+  "pytest-cov>=6.0",
+  "djangorestframework>=3.15",
 ]
+drf = ["djangorestframework>=3.15"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -78,4 +84,20 @@ target-version = "py311"
 extend-exclude = ["**/migrations/*"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["B", "C90", "E", "F", "I", "RUF", "SIM", "UP"]
+ignore = ["RUF012"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+exclude = ["migrations/"]
+
+[tool.coverage.run]
+source = ["django_boosted"]
+
+[tool.coverage.report]
+fail_under = 65
+show_missing = true

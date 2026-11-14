@@ -6,6 +6,23 @@ from django.urls import URLPattern, URLResolver, get_resolver
 from virtualqueryset.managers import VirtualManager  # type: ignore[import-untyped]
 
 
+def _view_identity(callback, app_labels: list[str]) -> tuple[str, str, str]:
+    """Return module, app label and model name for a URL callback."""
+    app_label = app_labels[-1] if app_labels else ""
+    if callback is None:
+        return "", app_label, ""
+    view_class = getattr(callback, "view_class", None)
+    if view_class is not None:
+        model = getattr(view_class, "model", None)
+        if model is not None:
+            return view_class.__module__, model._meta.app_label, model._meta.model_name
+        return view_class.__module__, app_label, ""
+    module = callback.__module__
+    if not app_label:
+        app_label = module.split(".")[0]
+    return module, app_label, ""
+
+
 @dataclass
 class UrlCollectionConfig:
     """Configuration for URL collection."""
@@ -50,65 +67,60 @@ class UrlManager(VirtualManager):
         app_labels = config.app_labels or []
 
         for pattern in resolver.url_patterns:
-            # URLResolver (include)
             if isinstance(pattern, URLResolver):
-                new_prefix = self._normalize_path(prefix + str(pattern.pattern))
-                new_namespaces = namespaces.copy()
-                if pattern.namespace:
-                    new_namespaces.append(pattern.namespace)
-                new_app_labels = app_labels.copy()
-                app_name = getattr(pattern, "app_name", None)
-                if app_name:
-                    new_app_labels.append(app_name)
-                self._collect_urls(
-                    pattern,
-                    new_prefix,
-                    data,
-                    config=UrlCollectionConfig(
-                        namespaces=new_namespaces, app_labels=new_app_labels
-                    ),
-                )
-            # URLPattern (view endpoint)
+                self._collect_included(pattern, prefix, data, namespaces, app_labels)
             elif isinstance(pattern, URLPattern):
-                url_path = self._normalize_path(prefix + str(pattern.pattern))
-                name = pattern.name or ""
-                namespace = ":".join(namespaces)
-                reverse_name = f"{namespace}:{name}" if namespace and name else name
+                data.append(self._pattern_row(pattern, prefix, namespaces, app_labels))
 
-                callback = getattr(pattern, "callback", None)
-                module = ""
-                app_label = app_labels[-1] if app_labels else ""
-                model_name = ""
+    def _collect_included(
+        self,
+        pattern: URLResolver,
+        prefix: str,
+        data: list[dict[str, str]],
+        namespaces: list[str],
+        app_labels: list[str],
+    ) -> None:
+        new_prefix = self._normalize_path(prefix + str(pattern.pattern))
+        new_namespaces = namespaces.copy()
+        if pattern.namespace:
+            new_namespaces.append(pattern.namespace)
+        new_app_labels = app_labels.copy()
+        app_name = getattr(pattern, "app_name", None)
+        if app_name:
+            new_app_labels.append(app_name)
+        self._collect_urls(
+            pattern,
+            new_prefix,
+            data,
+            config=UrlCollectionConfig(
+                namespaces=new_namespaces, app_labels=new_app_labels
+            ),
+        )
 
-                if callback:
-                    view_class = getattr(callback, "view_class", None)
-                    if view_class:
-                        # CBV
-                        module = view_class.__module__
-                        if getattr(view_class, "model", None):
-                            model_name = view_class.model._meta.model_name
-                            app_label = view_class.model._meta.app_label
-                    else:
-                        # FBV
-                        module = callback.__module__
-                        if not app_label:
-                            app_label = module.split(".")[0]
-
-                data.append(
-                    {
-                        "url": url_path,
-                        "name": name,
-                        "namespace": namespace,
-                        "reverse_name": reverse_name,
-                        "module": module,
-                        "app_label": app_label,
-                        "model": model_name,
-                        "lookup_str": getattr(pattern, "lookup_str", ""),
-                    }
-                )
-            else:
-                # fallback si pattern inconnu
-                continue
+    def _pattern_row(
+        self,
+        pattern: URLPattern,
+        prefix: str,
+        namespaces: list[str],
+        app_labels: list[str],
+    ) -> dict[str, str]:
+        url_path = self._normalize_path(prefix + str(pattern.pattern))
+        name = pattern.name or ""
+        namespace = ":".join(namespaces)
+        reverse_name = f"{namespace}:{name}" if namespace and name else name
+        module, app_label, model_name = _view_identity(
+            getattr(pattern, "callback", None), app_labels
+        )
+        return {
+            "url": url_path,
+            "name": name,
+            "namespace": namespace,
+            "reverse_name": reverse_name,
+            "module": module,
+            "app_label": app_label,
+            "model": model_name,
+            "lookup_str": getattr(pattern, "lookup_str", ""),
+        }
 
     def _normalize_path(self, path: str) -> str:
         """Normalize URL path by removing regex markers and ensuring leading slash."""

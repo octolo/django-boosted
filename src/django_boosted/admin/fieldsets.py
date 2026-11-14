@@ -1,4 +1,4 @@
-from typing import Iterable
+from collections.abc import Iterable
 
 
 def add_to_fieldset(self, name: str, fields: Iterable[str], **kwargs):
@@ -14,7 +14,9 @@ def add_to_fieldset(self, name: str, fields: Iterable[str], **kwargs):
             break
 
     if fieldset_dict is None:
-        fieldset_dict = {"fields": [],}
+        fieldset_dict = {
+            "fields": [],
+        }
         self.fieldsets.append((name, fieldset_dict))
     else:
         if "fields" not in fieldset_dict:
@@ -28,6 +30,7 @@ def add_to_fieldset(self, name: str, fields: Iterable[str], **kwargs):
 
     if kwargs.get("classes"):
         fieldset_dict["classes"] = kwargs.get("classes")
+
 
 def remove_from_fieldset(self, name: str, fields: Iterable[str]):
     """Remove fields from a fieldset by name."""

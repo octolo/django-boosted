@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from django.http import HttpResponseBase
-from django.shortcuts import redirect
 
-from .base import ViewConfig, ViewGenerator
+from .base import ViewConfig, ViewGenerator, redirect_to_allowed_url
 
 
 class RedirectViewMixin(ViewGenerator):
@@ -56,27 +55,39 @@ class RedirectViewMixin(ViewGenerator):
         base_wrapper = self._generate_admin_custom_view(view_func, label, config)
 
         if config.requires_object:
+
             def redirect_wrapper(request, object_id=None, *args, **kwargs):
-                obj, redir = self._check_permissions(request, object_id)
+                obj, redir = self._check_permissions(
+                    request,
+                    object_id,
+                    permission=config.permission,
+                    require_change=request.method == "POST",
+                )
                 if redir:
                     return redir
                 payload = view_func(request, obj, *args, **kwargs)
                 if isinstance(payload, HttpResponseBase):
                     return payload
                 if isinstance(payload, str):
-                    return redirect(payload)
-                return redirect("admin:index")
+                    return redirect_to_allowed_url(request, payload)
+                return redirect_to_allowed_url(request, "admin:index")
         else:
+
             def redirect_wrapper(request, *args, **kwargs):
-                _obj, redir = self._check_permissions(request, None)
+                _obj, redir = self._check_permissions(
+                    request,
+                    None,
+                    permission=config.permission,
+                    require_change=request.method == "POST",
+                )
                 if redir:
                     return redir
                 payload = view_func(request, *args, **kwargs)
                 if isinstance(payload, HttpResponseBase):
                     return payload
                 if isinstance(payload, str):
-                    return redirect(payload)
-                return redirect("admin:index")
+                    return redirect_to_allowed_url(request, payload)
+                return redirect_to_allowed_url(request, "admin:index")
 
         redirect_wrapper._admin_boost_config = base_wrapper._admin_boost_config  # type: ignore[attr-defined]
         return redirect_wrapper

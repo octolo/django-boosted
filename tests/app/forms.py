@@ -8,7 +8,10 @@ class CountryForm(forms.ModelForm):
         model = Country
         fields = ["name"]
 
+
 class AlphabetForm(forms.ModelForm):
     class Meta:
         model = Alphabet
-        fields = ["name",]
+        fields = [
+            "name",
+        ]

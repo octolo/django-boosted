@@ -2,16 +2,42 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from django.http import HttpResponse, HttpResponseBase
 from django.shortcuts import redirect
-from django.utils.translation import gettext_lazy as _
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.translation import gettext_lazy as _
 
 from .base import ViewGenerator
+
+
+def _safe_redirect_url(request, fallback: str) -> str:
+    referer = request.META.get("HTTP_REFERER")
+    if referer:
+        url = request.build_absolute_uri(referer)
+        if url_has_allowed_host_and_scheme(url, allowed_hosts={request.get_host()}):
+            return referer
+    return fallback
+
+
+def _call_confirm_view(
+    view_func,
+    request,
+    obj,
+    requires_object,
+    args,
+    kwargs,
+    *,
+    confirmed=False,
+):
+    call_args = (request, obj, *args) if requires_object else (request, *args)
+    call_kwargs = dict(kwargs)
+    if confirmed:
+        call_kwargs["confirmed"] = True
+    return view_func(*call_args, **call_kwargs)
 
 
 class ConfirmViewMixin(ViewGenerator):
@@ -29,19 +55,12 @@ class ConfirmViewMixin(ViewGenerator):
         hidden: bool = False,
     ) -> Callable:
 
-        def _safe_redirect_url(request, fallback: str) -> str:
-            referer = request.META.get("HTTP_REFERER")
-            if referer:
-                url = request.build_absolute_uri(referer)
-                if url_has_allowed_host_and_scheme(
-                    url, allowed_hosts=request.get_host()
-                ):
-                    return referer
-            return fallback
-
         def wrapper(request, object_id=None, *args, **kwargs):
             obj, redirect_response = self._check_permissions(
-                request, object_id if requires_object else None
+                request,
+                object_id if requires_object else None,
+                permission=permission,
+                require_change=request.method == "POST",
             )
             if redirect_response:
                 return redirect_response
@@ -54,19 +73,26 @@ class ConfirmViewMixin(ViewGenerator):
                     current_app=self.model_admin.admin_site.name,
                 )
                 if action == "confirm":
-                    result = (
-                        view_func(request, obj, confirmed=True, *args, **kwargs)
-                        if requires_object
-                        else view_func(request, confirmed=True, *args, **kwargs)
+                    result = _call_confirm_view(
+                        view_func,
+                        request,
+                        obj,
+                        requires_object,
+                        args,
+                        kwargs,
+                        confirmed=True,
                     )
                     if isinstance(result, (HttpResponse, HttpResponseBase)):
                         return result
                 return redirect(_safe_redirect_url(request, fallback))
 
-            payload = (
-                view_func(request, obj, *args, **kwargs)
-                if requires_object
-                else view_func(request, *args, **kwargs)
+            payload = _call_confirm_view(
+                view_func,
+                request,
+                obj,
+                requires_object,
+                args,
+                kwargs,
             )
 
             if isinstance(payload, (HttpResponse, HttpResponseBase)):
@@ -76,12 +102,14 @@ class ConfirmViewMixin(ViewGenerator):
             choices = payload.get("choices", [_("Confirm"), _("Cancel")])
 
             context = self._build_base_context(request, obj)
-            context.update({
-                "title": label,
-                "confirm_message": confirm_message,
-                "confirm_choice": choices[0] if len(choices) > 0 else _("Confirm"),
-                "cancel_choice": choices[1] if len(choices) > 1 else _("Cancel"),
-            })
+            context.update(
+                {
+                    "title": label,
+                    "confirm_message": confirm_message,
+                    "confirm_choice": choices[0] if len(choices) > 0 else _("Confirm"),
+                    "cancel_choice": choices[1] if len(choices) > 1 else _("Cancel"),
+                }
+            )
 
             if payload:
                 excluded = ["confirm", "choices"]

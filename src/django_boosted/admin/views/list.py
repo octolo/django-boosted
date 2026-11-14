@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from django.contrib.admin.views.main import ChangeList
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBase
 from django.template.response import TemplateResponse
 
@@ -18,10 +19,10 @@ class CustomChangeList(ChangeList):
         self._custom_queryset = queryset
         super().__init__(*args, **kwargs)
 
-    def get_queryset(self, request):
+    def get_queryset(self, request, exclude_parameters=None):
         if self._custom_queryset is not None:
             return self._custom_queryset
-        return super().get_queryset(request)
+        return super().get_queryset(request, exclude_parameters)
 
 
 def build_changelist(
@@ -84,6 +85,12 @@ class ListViewMixin(ViewGenerator):
 
             if queryset is None:
                 queryset = self.model_admin.model.objects.none()
+            elif queryset.model is not self.model_admin.model:
+                opts = queryset.model._meta
+                if not request.user.has_perm(
+                    f"{opts.app_label}.view_{opts.model_name}"
+                ):
+                    raise PermissionDenied
 
             list_display = payload.get("list_display", self.model_admin.list_display)
             list_filter = payload.get("list_filter", ())
@@ -99,27 +106,34 @@ class ListViewMixin(ViewGenerator):
             )
 
             context = self._build_base_context(request, obj)
-            context.update({
-                "title": label,
-                "cl": cl,
-                "has_filters": bool(list_filter),
-                "has_active_filters": cl.has_active_filters,
-                "preserved_filters": self.model_admin.get_preserved_filters(request),
-                "action_form": getattr(cl, "action_form", None),
-                "actions_on_top": self.model_admin.actions_on_top,
-                "actions_on_bottom": self.model_admin.actions_on_bottom,
-            })
-
-            context.update({
-                k: v
-                for k, v in payload.items()
-                if k not in {
-                    "queryset",
-                    "list_display",
-                    "list_filter",
-                    "search_fields",
+            context.update(
+                {
+                    "title": label,
+                    "cl": cl,
+                    "has_filters": bool(list_filter),
+                    "has_active_filters": cl.has_active_filters,
+                    "preserved_filters": self.model_admin.get_preserved_filters(
+                        request
+                    ),
+                    "action_form": getattr(cl, "action_form", None),
+                    "actions_on_top": self.model_admin.actions_on_top,
+                    "actions_on_bottom": self.model_admin.actions_on_bottom,
                 }
-            })
+            )
+
+            context.update(
+                {
+                    k: v
+                    for k, v in payload.items()
+                    if k
+                    not in {
+                        "queryset",
+                        "list_display",
+                        "list_filter",
+                        "search_fields",
+                    }
+                }
+            )
 
             request.current_app = self.model_admin.admin_site.name
             return TemplateResponse(request, template_name, context)
@@ -128,6 +142,8 @@ class ListViewMixin(ViewGenerator):
             obj, redirect = self._check_permissions(
                 request,
                 object_id if requires_object else None,
+                permission=permission,
+                require_change=request.method == "POST",
             )
             if redirect:
                 return redirect

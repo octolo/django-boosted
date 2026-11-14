@@ -1,13 +1,15 @@
 from django.contrib import admin
 from django.urls import reverse
 
-from django_boosted import AdminBoostModel, admin_boost_view
+from django_boosted import AdminBoostModel, admin_boost_link, admin_boost_view
 
 from ..forms import AlphabetForm, CountryForm
 from ..models import Country
+from .city import CityInline
 
 
 class CountryAdmin(AdminBoostModel):
+    inlines = [CityInline]
     search_fields = ["name"]
     list_display = [
         "name",
@@ -19,6 +21,11 @@ class CountryAdmin(AdminBoostModel):
         "label_link_secondary_big",
         "label_link_default_big",
     ]
+
+    @admin_boost_link("Cities", permission="tests_app.view_city")
+    def city_list_link(self, request, obj):
+        url = reverse("admin:tests_app_city_changelist")
+        return f"{url}?country__id__exact={obj.pk}"
 
     @admin.display(description="Success Small")
     def label_link_success_small(self, obj):

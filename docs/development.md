@@ -2,7 +2,7 @@
 
 ### General Rules
 
-- Always execute project tooling through `./service.py dev <command>` or `python dev.py <command>`.
+- Execute project tooling with the Python modules configured in `pyproject.toml`.
 - Default to English for all code artifacts (comments, docstrings, logging, error strings, documentation snippets, etc.) regardless of the language used in discussions.
 - Keep comments minimal and only when they clarify non-obvious logic.
 - Avoid reiterating what the code already states clearly.
@@ -39,13 +39,17 @@
 - **URLs**: Register URLs through Django admin's URL system
 - **Models**: Use Django models appropriately, including virtual models when needed
 
-### Qualitybase Integration
+### Commands
 
-- **qualitybase is an installed package**: Always use standard Python imports from `qualitybase.services`
-- **No path manipulation**: Never manipulate `sys.path` or use file paths to import qualitybase modules
-- **Direct imports only**: Use `from qualitybase.services import ...` or `import qualitybase.services ...`
-- **Standard library imports**: Use `importlib.import_module()` from the standard library if needed for dynamic imports
-- **Works everywhere**: Since qualitybase is installed in the virtual environment, imports work consistently across all projects
+```bash
+python -m pip install -e ".[dev]"
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy src tests
+python -m pytest --cov
+python -m bandit -r src -c pyproject.toml
+python -m pip_audit
+```
 
 ### Configuration and Secrets
 
