@@ -1,5 +1,6 @@
 """Custom model fields for django-boosted."""
 
+from django import forms
 from django.conf import settings
 from django.db import models
 from django.urls import NoReverseMatch, reverse
@@ -11,9 +12,18 @@ from django_boosted.middleware.current_user import get_current_user
 class SecretFieldMixin:
     """Render the field with a reveal widget (hidden by default, toggleable)."""
 
-    def formfield(self, **kwargs):
+    def formfield(
+        self,
+        form_class: type[forms.Field] | None = None,
+        choices_form_class: type[forms.ChoiceField] | None = None,
+        **kwargs,
+    ):
         kwargs.setdefault("widget", RevealWidget)
-        return super().formfield(**kwargs)  # type: ignore[misc]
+        return super().formfield(  # type: ignore[misc]
+            form_class=form_class,
+            choices_form_class=choices_form_class,
+            **kwargs,
+        )
 
 
 class SecretCharField(SecretFieldMixin, models.CharField):

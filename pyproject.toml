@@ -52,6 +52,8 @@ dev = [
   "bandit>=1.7",
   "pip-audit>=2.7",
   "mypy>=1.13",
+  "django-stubs>=5.2,<6",
+  "django-stubs-ext>=5.2,<6",
   "radon>=6.0",
   "vulture>=2.14",
   "coverage>=7.6",
@@ -92,8 +94,15 @@ exclude_dirs = ["tests"]
 
 [tool.mypy]
 python_version = "3.11"
+plugins = ["mypy_django_plugin.main"]
+mypy_path = ["src", "."]
 check_untyped_defs = true
+warn_unused_configs = true
 exclude = ["migrations/"]
+
+[tool.django-stubs]
+django_settings_module = "tests.settings"
+strict_settings = false
 
 [tool.coverage.run]
 source = ["django_boosted"]
