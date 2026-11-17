@@ -86,7 +86,11 @@ These rules must always be followed.
    - Reusable admin templates
    - Change form template with object tools
 
-5. **DRF Integration** (`rest_framework/metadata.py`)
+5. **Nested admin inlines** (`admin/inlines.py`, `docs/nested-inlines.md`)
+   - Recursive stacked and tabular inlines
+   - Native Django templates when an inline has no visible children
+
+6. **DRF Integration** (`rest_framework/metadata.py`)
    - Custom metadata class for Django Rest Framework
    - Conditional import when DRF is installed
 

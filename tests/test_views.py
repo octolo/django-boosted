@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client as DjangoClient
 from django.urls import reverse
 
-from tests.app.models import City, Country
+from tests.app.models import Campus, City, Country
 
 
 @pytest.fixture()
@@ -314,3 +314,32 @@ def test_non_staff_cannot_access_global_view(plain_user):
     response = _client(plain_user).get(url)
 
     assert response.status_code in (302, 403)
+
+
+@pytest.mark.django_db()
+def test_generate_sample_campus_opens_nested_inlines(admin_client):
+    url = reverse("admin:tests_app_campus_generate_sample_data")
+
+    confirmation = admin_client.get(url)
+    created = admin_client.post(url, {"action": "confirm"})
+
+    campus = Campus.objects.get()
+    change_url = reverse("admin:tests_app_campus_change", args=[campus.pk])
+    page = admin_client.get(change_url)
+    html = page.content.decode()
+    assert confirmation.status_code == 200
+    assert "nested inlines" in confirmation.content.decode()
+    assert created.status_code == 302
+    assert created.url == change_url
+    assert page.status_code == 200
+    assert campus.faculties.count() == 2
+    assert "Computer science" in html
+    assert "Ada Lovelace" in html
+    assert "cs@example.com" in html
+    assert "medieval-europe" in html
+    assert "Computer science seminar" in html
+    assert "boosted-nested-column-heading" in html
+    assert "boosted-nested-inline-row" in html
+    assert 'data-inline-type="stacked"' in html
+    assert 'data-inline-type="tabular"' in html
+    assert "admin_boost/nested_inlines.js" in html

@@ -8,6 +8,7 @@ Lightweight helpers to extend Django’s admin with extra views, custom forms, a
 - **`AdminBoostModel`** – registers custom URLs, protects them with `admin_site.admin_view`, and injects extra object-tool buttons into the change form.
 - **`AuditMixin`** – adds `created_by`, `updated_by`, `created_at`, `updated_at` with automatic user tracking via middleware.
 - **Additional templates** – a change form template that renders the injected buttons plus a simple “Hello” view as a teaching aid.
+- **Nested admin inlines** – edit stacked and tabular inline trees on one change page. See [Nested admin inlines](docs/nested-inlines.md).
 
 ## Installation
 
@@ -54,6 +55,50 @@ class CountryAdmin(AdminBoostModel):
 
 Set `requires_object=False` to place a direct link in changelist tools instead.
 The decorated method then receives only `request`.
+
+## Nested admin inlines
+
+`AdminBoostModel` can edit inline trees of any finite depth. A class that owns
+other inlines inherits `NestedStackedInline` or `NestedTabularInline`. A leaf
+can stay a normal Django inline:
+
+```python
+from django.contrib import admin
+from django_boosted import AdminBoostModel, NestedStackedInline, NestedTabularInline
+
+
+class RoomInline(admin.TabularInline):
+    model = Room
+    extra = 0
+
+
+class BuildingInline(NestedStackedInline):
+    model = Building
+    inlines = [RoomInline]
+    extra = 0
+
+
+class CityInline(NestedTabularInline):
+    model = City
+    inlines = [BuildingInline]
+    extra = 0
+
+
+class CountryAdmin(AdminBoostModel):
+    inlines = [CityInline]
+```
+
+Child permissions receive the direct parent object. Set `extra` explicitly at
+each level so the initial form tree stays small. Generic inlines are not
+supported. This is a separate API from `django-nested-admin`.
+
+[Nested admin inlines](docs/nested-inlines.md) documents dynamic children,
+saving, widgets, and the current limits.
+
+The sample admin demonstrates both layouts: faculties are tabular, departments
+are stacked inside each faculty, and each department contains a tabular course
+inline beside a stacked seminar inline. On the campus changelist, **Generate
+sample data** creates one tree and opens its change page.
 
 ## Object forms
 

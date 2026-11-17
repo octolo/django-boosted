@@ -18,6 +18,11 @@ from .format import (
     format_status,
     format_with_help_text,
 )
+from .inlines import (
+    active_nested_formsets,
+    extend_nested_formsets,
+    nested_inline_formsets,
+)
 from .tools import (
     get_boost_list_links,
     get_boost_list_tools,
@@ -102,6 +107,28 @@ class AdminBoostModel(ModelAdmin, AdminBoostFormat):
             if hasattr(func, "_admin_boost_view_config"):
                 self.boost_views += (func._admin_boost_view_config["name"],)
         setup_boost_views(self, view_generator)
+
+    def _create_formsets(self, request, obj, change):
+        """Create root inline formsets and any nested descendant formsets."""
+        formsets, inline_instances = super()._create_formsets(request, obj, change)  # type: ignore[misc]
+        return extend_nested_formsets(self, request, obj, formsets, inline_instances)
+
+    def get_inline_formsets(self, request, formsets, inline_instances, obj=None):
+        """Return root inline wrappers, with descendants attached to parents."""
+        nested = nested_inline_formsets(self, request, formsets, inline_instances, obj)
+        if nested is None:
+            return super().get_inline_formsets(request, formsets, inline_instances, obj)
+        return nested
+
+    def save_related(self, request, form, formsets, change):
+        """Save related objects, skipping descendants of inactive ancestors."""
+        active = active_nested_formsets(formsets)
+        super().save_related(
+            request,
+            form,
+            formsets if active is None else active,
+            change,
+        )
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}

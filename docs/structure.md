@@ -54,6 +54,7 @@ django-boosted/
 The `admin/` directory contains Django admin utilities:
 
 - **`model.py`**: `AdminBoostModel`
+- **`inlines.py`**: recursive nested admin inlines. Usage is documented in `docs/nested-inlines.md`.
 - **`permissions.py`**: model view permission resolution
 - **`views/`**: `ViewGenerator`, specialized view types, and decorator setup
 - **`../decorators.py`**: `@admin_boost_view` and `@admin_boost_action`
@@ -66,5 +67,6 @@ The `admin/` directory contains Django admin utilities:
 
 The public API is defined in `src/django_boosted/__init__.py`:
 - `AdminBoostModel`: Main admin model mixin
+- `NestedInlineMixin`, `NestedStackedInline`, `NestedTabularInline`: recursive admin inlines
 - `admin_boost_view`: Decorator for defining custom views
 - Conditional DRF exports when DRF is installed

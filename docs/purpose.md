@@ -22,12 +22,17 @@ The library provides:
    - Automatic injection of object-tool buttons into change forms
    - Integration with Django admin's permission system
 
-4. **Templates**:
+4. **Nested admin inlines**:
+   - Recursive stacked and tabular inlines on one change page
+   - Direct-parent permissions and configuration
+   - Native Django rendering for leaves and inlines without children
+
+5. **Templates**:
    - Reusable admin templates for custom views
    - Change form template with object tools support
    - Message and form templates
 
-5. **DRF Integration**:
+6. **DRF Integration**:
    - Custom metadata class for Django Rest Framework
    - Support for `extra_metadata` on DRF fields
    - Conditional import when DRF is installed

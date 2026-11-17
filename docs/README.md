@@ -7,6 +7,7 @@ For detailed information, refer to:
 - `purpose.md` - Project purpose and goals
 - `structure.md` - Project structure and module organization
 - `development.md` - Development guidelines and best practices
+- `nested-inlines.md` - Nested admin inline usage, saving rules, and limits
 
 ### Quick Reference
 

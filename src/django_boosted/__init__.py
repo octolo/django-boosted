@@ -5,6 +5,9 @@ from importlib.metadata import version
 from .admin import (
     AdminBoostFormat,
     AdminBoostModel,
+    NestedInlineMixin,
+    NestedStackedInline,
+    NestedTabularInline,
     admin_boost_global_view,
     register_index_view,
 )
@@ -46,6 +49,9 @@ __all__ = [
     "AuditUserField",
     "AuditUserValue",
     "CurrentUserMiddleware",
+    "NestedInlineMixin",
+    "NestedStackedInline",
+    "NestedTabularInline",
     "admin_boost_action",
     "admin_boost_global_view",
     "admin_boost_link",
